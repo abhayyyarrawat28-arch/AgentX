@@ -8,6 +8,35 @@ import { startOfYear, dayOfYear, daysInYear } from '../../utils/dateHelpers';
 
 type ProductAdjustmentKey = 'termPlan' | 'savingsPlan' | 'ulip' | 'endowment';
 
+type ProductConfig = {
+  name: 'Term Plan' | 'Savings Plan' | 'ULIP' | 'Endowment';
+  fyCommissionRate: number;
+  renewalRates: { year2: number; year3: number; year4: number; year5: number };
+};
+
+const DEFAULT_PRODUCT_CONFIGS: Record<ProductConfig['name'], ProductConfig> = {
+  'Term Plan': {
+    name: 'Term Plan',
+    fyCommissionRate: 0.35,
+    renewalRates: { year2: 0.075, year3: 0.075, year4: 0.05, year5: 0.05 },
+  },
+  'Savings Plan': {
+    name: 'Savings Plan',
+    fyCommissionRate: 0.25,
+    renewalRates: { year2: 0.05, year3: 0.05, year4: 0.05, year5: 0.05 },
+  },
+  ULIP: {
+    name: 'ULIP',
+    fyCommissionRate: 0.15,
+    renewalRates: { year2: 0.03, year3: 0.03, year4: 0.02, year5: 0.02 },
+  },
+  Endowment: {
+    name: 'Endowment',
+    fyCommissionRate: 0.3,
+    renewalRates: { year2: 0.06, year3: 0.06, year4: 0.04, year5: 0.04 },
+  },
+};
+
 const DEFAULT_SIMULATION_CONDITIONS = [
   {
     key: 'market-volatility',
@@ -41,6 +70,18 @@ const DEFAULT_SIMULATION_CONDITIONS = [
   },
 ];
 
+const DEFAULT_COMMISSION_CONFIG = {
+  slabs: [
+    { minPremium: 0, maxPremium: 500000, bonusRate: 0 },
+    { minPremium: 500000, maxPremium: 1500000, bonusRate: 0.05 },
+    { minPremium: 1500000, maxPremium: 3000000, bonusRate: 0.08 },
+    { minPremium: 3000000, maxPremium: null, bonusRate: 0.12 },
+  ],
+  persistencyThreshold: 0.85,
+  mdrtTarget: 3000000,
+  simulationConditions: DEFAULT_SIMULATION_CONDITIONS,
+};
+
 function applyPersistencyDecay(count: number, rate: number): number[] {
   return [1, 2, 3, 4, 5].map((yr) => Number((count * Math.pow(rate, yr)).toFixed(4)));
 }
@@ -51,20 +92,28 @@ function clamp(value: number, min: number, max: number): number {
 
 async function getActiveConfig() {
   const now = new Date();
-  return CommissionConfig.findOne({
+  const dbConfig = await CommissionConfig.findOne({
     effectiveFrom: { $lte: now },
     $or: [{ effectiveTo: null }, { effectiveTo: { $gt: now } }],
   }).sort({ effectiveFrom: -1 });
+
+  return dbConfig || DEFAULT_COMMISSION_CONFIG;
 }
 
 async function getActiveProduct(productType: string) {
   const now = new Date();
-  return Product.findOne({
+  const dbProduct = await Product.findOne({
     name: productType,
     isActive: true,
     effectiveFrom: { $lte: now },
     $or: [{ effectiveTo: null }, { effectiveTo: { $gt: now } }],
   }).sort({ effectiveFrom: -1 });
+
+  if (dbProduct) {
+    return dbProduct;
+  }
+
+  return DEFAULT_PRODUCT_CONFIGS[productType as ProductConfig['name']] || null;
 }
 
 function getBonusRate(config: any, totalPremium: number): number {
