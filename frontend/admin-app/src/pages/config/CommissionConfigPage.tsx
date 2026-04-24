@@ -234,6 +234,11 @@ function normalizeRatio(value: number) {
   return Math.abs(value) > 1 ? value / 100 : value;
 }
 
+function toNumberOr(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export default function CommissionConfigPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [simulationConditions, setSimulationConditions] = useState<SimulationConditionFormRow[]>(DEFAULT_SIMULATION_CONDITIONS);
@@ -285,13 +290,13 @@ export default function CommissionConfigPage() {
 
     try {
       const configPayload = {
-        persistencyThreshold: Number(data.persistencyThreshold) / 100,
-        mdrtTarget: Number(data.mdrtTarget),
-        effectiveFrom: data.effectiveFrom,
+        persistencyThreshold: normalizeRatio(toNumberOr(data.persistencyThreshold, 85)),
+        mdrtTarget: Math.max(1, toNumberOr(data.mdrtTarget, 3000000)),
+        effectiveFrom: data.effectiveFrom || todayDate(),
         slabs: data.slabs.map((slab) => ({
-          minPremium: Number(slab.minPremium),
-          maxPremium: slab.maxPremium === '' ? null : Number(slab.maxPremium),
-          bonusRate: Number(slab.bonusRate) / 100,
+          minPremium: Math.max(0, toNumberOr(slab.minPremium, 0)),
+          maxPremium: slab.maxPremium === '' ? null : toNumberOr(slab.maxPremium, 0),
+          bonusRate: normalizeRatio(toNumberOr(slab.bonusRate, 0)),
         })),
         simulationConditions: simulationConditions.map((condition) => ({
           ...condition,
@@ -355,7 +360,14 @@ export default function CommissionConfigPage() {
       await loadData(false);
       setMessage('Commission architecture saved successfully');
     } catch (err: any) {
-      setMessage(err.response?.data?.error?.message || 'Failed to save commission architecture');
+      const apiError = err?.response?.data?.error;
+      const details = apiError?.details && typeof apiError.details === 'object'
+        ? Object.entries(apiError.details)
+          .map(([path, messages]) => `${path}: ${Array.isArray(messages) ? messages.join(', ') : String(messages)}`)
+          .join(' | ')
+        : '';
+
+      setMessage(details ? `Validation failed - ${details}` : (apiError?.message || 'Failed to save commission architecture'));
     } finally {
       setSaving(false);
     }
