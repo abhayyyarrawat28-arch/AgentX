@@ -7,6 +7,11 @@ export default function RegistrationsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionNote, setRejectionNote] = useState('');
+<<<<<<< HEAD
+=======
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+>>>>>>> 74678b0 (fixed admin and agent issues)
 
   useEffect(() => {
     if (!rejectingId) return;
@@ -44,6 +49,16 @@ export default function RegistrationsPage() {
     setRejectionNote('');
   };
 
+<<<<<<< HEAD
+=======
+  const submitApproval = async () => {
+    if (!approvingId || password.trim().length < 8) return;
+    await handleAction(approvingId, 'approve', { password: password.trim() });
+    setApprovingId(null);
+    setPassword('');
+  };
+
+>>>>>>> 74678b0 (fixed admin and agent issues)
   if (loading) return <div className="text-gray-500 p-6">Loading...</div>;
 
   const pendingCount = registrations.filter(r => r.status === 'pending').length;
@@ -76,8 +91,13 @@ export default function RegistrationsPage() {
                 <td className="p-3 align-top">
                   {r.status === 'pending' && (
                     <div className="flex flex-wrap gap-2">
+<<<<<<< HEAD
                       <button onClick={() => handleAction(r._id, 'approve')} disabled={actionLoading === r._id} className="btn-primary px-4 py-2 text-xs">
                         {actionLoading === r._id ? 'Processing...' : 'Approve'}
+=======
+                      <button onClick={() => { setApprovingId(r._id); setPassword(''); }} disabled={actionLoading === r._id} className="btn-primary px-4 py-2 text-xs">
+                        Approve
+>>>>>>> 74678b0 (fixed admin and agent issues)
                       </button>
                       <button onClick={() => { setRejectingId(r._id); setRejectionNote(''); }} disabled={actionLoading === r._id} className="btn-danger px-4 py-2 text-xs">
                         Reject
@@ -123,6 +143,46 @@ export default function RegistrationsPage() {
           </div>
         </div>
       )}
+<<<<<<< HEAD
+=======
+
+      {approvingId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4"
+          onClick={() => {
+            if (actionLoading === approvingId) return;
+            setApprovingId(null);
+            setPassword('');
+          }}
+        >
+          <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <p className="page-kicker">Registration review</p>
+            <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-gray-900">Approve Application</h2>
+            <p className="page-subtitle">Set the agent password now so the account is created with a real credential instead of a random one.</p>
+            <div className="mt-4">
+              <label className="block text-sm font-medium mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="input-field w-full"
+                placeholder="Enter agent password"
+                minLength={8}
+              />
+            </div>
+            <p className="mt-2 text-xs text-gray-500">Minimum 8 characters.</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" className="btn-secondary" onClick={() => { setApprovingId(null); setPassword(''); }}>
+                Cancel
+              </button>
+              <button type="button" className="btn-primary" disabled={password.trim().length < 8 || actionLoading === approvingId} onClick={submitApproval}>
+                {actionLoading === approvingId ? 'Approving...' : 'Confirm Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+>>>>>>> 74678b0 (fixed admin and agent issues)
     </div>
   );
 }

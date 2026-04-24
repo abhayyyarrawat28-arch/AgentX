@@ -33,7 +33,11 @@ router.post('/auth/register', validate(AgentRegistrationInputSchema), authContro
 router.get('/auth/register/status/:registrationId', authController.getRegistrationStatus);
 
 // ─── Agent Dashboard ──────────────────────────────────────
+<<<<<<< HEAD
 router.get('/agent/dashboard', authenticate, requireRole('agent', 'admin'), dashboardController.agentDashboard);
+=======
+router.get('/agent/dashboard', authenticate, requireRole('agent'), dashboardController.agentDashboard);
+>>>>>>> 74678b0 (fixed admin and agent issues)
 
 // ─── Calculators ──────────────────────────────────────────
 router.post('/calculator/forward', authenticate, requireRole('agent'), validate(ForwardCalcSchema), calculatorController.forwardCalculator);

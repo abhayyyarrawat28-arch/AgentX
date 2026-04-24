@@ -96,6 +96,10 @@ export const AgentRegistrationInputSchema = z.object({
 
 export const RegistrationApproveSchema = z.object({
   branchId: z.string().optional(),
+<<<<<<< HEAD
+=======
+  password: z.string().min(8).max(50),
+>>>>>>> 74678b0 (fixed admin and agent issues)
 });
 
 export const RegistrationRejectSchema = z.object({

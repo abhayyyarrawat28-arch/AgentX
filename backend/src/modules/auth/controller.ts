@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+<<<<<<< HEAD
 import crypto from 'crypto';
+=======
+>>>>>>> 74678b0 (fixed admin and agent issues)
 import { User } from '../user/model';
 import { AgentRegistration } from '../agent-registration/model';
 import { AuditLog } from '../logs/model';
@@ -271,8 +274,13 @@ export async function approveRegistration(req: Request, res: Response): Promise<
       return;
     }
 
+<<<<<<< HEAD
     const temporaryPassword = crypto.randomUUID().slice(0, 12).toUpperCase();
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+=======
+    const { password } = req.body;
+    const passwordHash = await bcrypt.hash(password, 12);
+>>>>>>> 74678b0 (fixed admin and agent issues)
 
     const newUser = new User({
       employeeId: registration.employeeId,
@@ -306,7 +314,11 @@ export async function approveRegistration(req: Request, res: Response): Promise<
     await sendNotification({
       to: { email: registration.email, mobile: registration.mobile, name: registration.fullName },
       type: 'registration_approved',
+<<<<<<< HEAD
       data: { employeeId: registration.employeeId, temporaryPassword },
+=======
+      data: { employeeId: registration.employeeId, password },
+>>>>>>> 74678b0 (fixed admin and agent issues)
     });
 
     sendSuccess(res, {
