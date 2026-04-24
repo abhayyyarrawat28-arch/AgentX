@@ -10,10 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-<<<<<<< HEAD
-=======
   const logout = useAuthStore((s) => s.logout);
->>>>>>> 74678b0 (fixed admin and agent issues)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,14 +19,11 @@ export default function LoginPage() {
     try {
       const res = await authService.login(employeeId, password);
       const data = res.data.data;
-<<<<<<< HEAD
-=======
       if (data.role !== 'agent') {
         logout();
         setError('Agent access only');
         return;
       }
->>>>>>> 74678b0 (fixed admin and agent issues)
       if (data.mustChangePassword) {
         setAuth(data.token, data.role);
         navigate('/change-password');

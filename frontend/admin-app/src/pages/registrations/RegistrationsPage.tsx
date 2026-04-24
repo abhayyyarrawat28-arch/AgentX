@@ -7,11 +7,8 @@ export default function RegistrationsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionNote, setRejectionNote] = useState('');
-<<<<<<< HEAD
-=======
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
->>>>>>> 74678b0 (fixed admin and agent issues)
 
   useEffect(() => {
     if (!rejectingId) return;
@@ -49,8 +46,6 @@ export default function RegistrationsPage() {
     setRejectionNote('');
   };
 
-<<<<<<< HEAD
-=======
   const submitApproval = async () => {
     if (!approvingId || password.trim().length < 8) return;
     await handleAction(approvingId, 'approve', { password: password.trim() });
@@ -58,7 +53,6 @@ export default function RegistrationsPage() {
     setPassword('');
   };
 
->>>>>>> 74678b0 (fixed admin and agent issues)
   if (loading) return <div className="text-gray-500 p-6">Loading...</div>;
 
   const pendingCount = registrations.filter(r => r.status === 'pending').length;
@@ -76,28 +70,31 @@ export default function RegistrationsPage() {
           <span className="data-chip">Total Requests {registrations.length}</span>
         </div>
       </section>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[48rem] table-fixed text-sm">
-          <thead><tr className="bg-gray-50 border-b border-gray-200">
-            <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th><th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee ID</th><th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th><th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th><th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
-          </tr></thead>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[48rem] table-fixed text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>
+              <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee ID</th>
+              <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th>
+              <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="p-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
           <tbody>
             {registrations.map(r => (
               <tr key={r._id} className="border-b">
                 <td className="p-3 align-top"><span className="block break-words">{r.fullName}</span></td>
                 <td className="p-3 align-top"><span className="block break-all">{r.employeeId}</span></td>
                 <td className="p-3 align-top"><span className="block break-all">{r.email}</span></td>
-                <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === 'approved' ? 'bg-green-100 text-green-800' : r.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{r.status}</span></td>
+                <td className="p-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === 'approved' ? 'bg-green-100 text-green-800' : r.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{r.status}</span>
+                </td>
                 <td className="p-3 align-top">
                   {r.status === 'pending' && (
                     <div className="flex flex-wrap gap-2">
-<<<<<<< HEAD
-                      <button onClick={() => handleAction(r._id, 'approve')} disabled={actionLoading === r._id} className="btn-primary px-4 py-2 text-xs">
-                        {actionLoading === r._id ? 'Processing...' : 'Approve'}
-=======
                       <button onClick={() => { setApprovingId(r._id); setPassword(''); }} disabled={actionLoading === r._id} className="btn-primary px-4 py-2 text-xs">
                         Approve
->>>>>>> 74678b0 (fixed admin and agent issues)
                       </button>
                       <button onClick={() => { setRejectingId(r._id); setRejectionNote(''); }} disabled={actionLoading === r._id} className="btn-danger px-4 py-2 text-xs">
                         Reject
@@ -143,8 +140,6 @@ export default function RegistrationsPage() {
           </div>
         </div>
       )}
-<<<<<<< HEAD
-=======
 
       {approvingId && (
         <div
@@ -182,7 +177,6 @@ export default function RegistrationsPage() {
           </div>
         </div>
       )}
->>>>>>> 74678b0 (fixed admin and agent issues)
     </div>
   );
 }
