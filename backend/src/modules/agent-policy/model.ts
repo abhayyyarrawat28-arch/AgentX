@@ -45,6 +45,9 @@ const AgentPolicySchema = new Schema<IAgentPolicy>(
 );
 
 AgentPolicySchema.index({ agentId: 1, issueDate: -1 });
+AgentPolicySchema.index({ agentId: 1, isDeleted: 1, issueDate: -1 });
+AgentPolicySchema.index({ agentId: 1, isDeleted: 1, persistencyStatus: 1, issueDate: -1 });
+AgentPolicySchema.index({ agentId: 1, isDeleted: 1, policyHolderId: 1 });
 AgentPolicySchema.index({ policyHolderId: 1 });
 AgentPolicySchema.index({ saleTransactionId: 1 });
 AgentPolicySchema.index({ persistencyStatus: 1 });

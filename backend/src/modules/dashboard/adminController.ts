@@ -6,11 +6,22 @@ import { PolicyHolder } from '../policy-holder/model';
 import { CommissionConfig } from '../config/model';
 import { sendSuccess, sendError } from '../../utils/apiResponse';
 import { startOfYear, monthsAgo, getMonthAbbr } from '../../utils/dateHelpers';
+import { getCached, setCached, serializeQuery } from '../../utils/ttlCache';
 
 export async function agentOverview(req: Request, res: Response): Promise<void> {
   try {
+    const cacheKey = `admin-agent-overview:${serializeQuery(req.query as Record<string, unknown>)}`;
+    const cached = getCached<{ data: any[]; meta: { page: number; limit: number; total: number } }>(cacheKey);
+    if (cached) {
+      sendSuccess(res, cached.data, 200, cached.meta);
+      return;
+    }
+
     const { page = 1, limit = 20, branchId, search, sortBy = 'ytdPremium', sortOrder = 'desc' } = req.query as any;
     const yearStart = startOfYear();
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (pageNumber - 1) * limitNumber;
 
     const userFilter: any = { role: 'agent', isActive: true };
     if (branchId) userFilter.branchId = branchId;
@@ -21,85 +32,176 @@ export async function agentOverview(req: Request, res: Response): Promise<void> 
       ];
     }
 
-    const [_totalAgents, agents] = await Promise.all([
-      User.countDocuments(userFilter),
-      User.find(userFilter).select('-passwordHash').lean(),
-    ]);
-
     const config = await CommissionConfig.findOne({
       effectiveFrom: { $lte: new Date() },
       $or: [{ effectiveTo: null }, { effectiveTo: { $gt: new Date() } }],
     }).sort({ effectiveFrom: -1 });
     const mdrtTarget = config?.mdrtTarget || 3000000;
 
-    // Get performance data for all agents
-    const agentIds = agents.map(a => a._id);
+    const sortFieldMap: Record<string, string> = {
+      name: 'name',
+      employeeId: 'employeeId',
+      branchId: 'branchId',
+      ytdPremium: 'ytdPremium',
+      policyCount: 'policyCount',
+      activePolicies: 'activePolicies',
+      customerCount: 'customerCount',
+      persistencyRate: 'persistencyRate',
+      percentAchieved: 'percentAchieved',
+    };
+    const safeSortBy = sortFieldMap[String(sortBy)] || 'ytdPremium';
+    const sortDir = sortOrder === 'asc' ? 1 : -1;
 
-    const performance = await AgentPolicy.aggregate([
-      { $match: { agentId: { $in: agentIds }, isDeleted: false } },
+    const pipeline: any[] = [
+      { $match: userFilter },
       {
-        $group: {
-          _id: '$agentId',
-          ytdPremium: {
-            $sum: { $cond: [{ $and: [{ $gte: ['$issueDate', yearStart] }, { $eq: ['$persistencyStatus', 'active'] }] }, '$annualPremium', 0] },
-          },
-          policyCount: { $sum: 1 },
-          activePolicies: { $sum: { $cond: [{ $eq: ['$persistencyStatus', 'active'] }, 1, 0] } },
+        $lookup: {
+          from: 'agentpolicies',
+          let: { agentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$agentId', '$$agentId'] },
+                    { $eq: ['$isDeleted', false] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                ytdPremium: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $gte: ['$issueDate', yearStart] },
+                          { $eq: ['$persistencyStatus', 'active'] },
+                        ],
+                      },
+                      '$annualPremium',
+                      0,
+                    ],
+                  },
+                },
+                policyCount: { $sum: 1 },
+                activePolicies: {
+                  $sum: { $cond: [{ $eq: ['$persistencyStatus', 'active'] }, 1, 0] },
+                },
+              },
+            },
+          ],
+          as: 'performance',
         },
       },
-    ]);
+      {
+        $lookup: {
+          from: 'policyholders',
+          let: { agentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$agentId', '$$agentId'] },
+              },
+            },
+            {
+              $count: 'count',
+            },
+          ],
+          as: 'customerStats',
+        },
+      },
+      {
+        $addFields: {
+          ytdPremium: { $ifNull: [{ $arrayElemAt: ['$performance.ytdPremium', 0] }, 0] },
+          policyCount: { $ifNull: [{ $arrayElemAt: ['$performance.policyCount', 0] }, 0] },
+          activePolicies: { $ifNull: [{ $arrayElemAt: ['$performance.activePolicies', 0] }, 0] },
+          customerCount: { $ifNull: [{ $arrayElemAt: ['$customerStats.count', 0] }, 0] },
+        },
+      },
+      {
+        $addFields: {
+          persistencyRate: {
+            $cond: [
+              { $gt: ['$policyCount', 0] },
+              { $divide: ['$activePolicies', '$policyCount'] },
+              0,
+            ],
+          },
+          percentAchieved: {
+            $min: [
+              { $multiply: [{ $divide: ['$ytdPremium', mdrtTarget] }, 100] },
+              100,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          mdrtStatus: {
+            $switch: {
+              branches: [
+                { case: { $gte: ['$percentAchieved', 100] }, then: 'qualified' },
+                { case: { $gte: ['$percentAchieved', 70] }, then: 'on-track' },
+              ],
+              default: 'at-risk',
+            },
+          },
+        },
+      },
+    ];
 
-    const customerCounts = await PolicyHolder.aggregate([
-      { $match: { agentId: { $in: agentIds } } },
-      { $group: { _id: '$agentId', count: { $sum: 1 } } },
-    ]);
-
-    const perfMap = new Map(performance.map((p: any) => [p._id.toString(), p]));
-    const custMap = new Map(customerCounts.map((c: any) => [c._id.toString(), c.count]));
-
-    let agentList = agents.map(a => {
-      const perf = perfMap.get(a._id.toString()) || { ytdPremium: 0, policyCount: 0, activePolicies: 0 };
-      const persistencyRate = perf.policyCount > 0 ? perf.activePolicies / perf.policyCount : 0;
-      const percentAchieved = Math.min((perf.ytdPremium / mdrtTarget) * 100, 100);
-      let mdrtStatus: string;
-      if (percentAchieved >= 100) mdrtStatus = 'qualified';
-      else if (percentAchieved >= 70) mdrtStatus = 'on-track';
-      else mdrtStatus = 'at-risk';
-
-      return {
-        _id: a._id,
-        name: a.name,
-        employeeId: a.employeeId,
-        branchId: a.branchId,
-        ytdPremium: perf.ytdPremium,
-        policyCount: perf.policyCount,
-        activePolicies: perf.activePolicies,
-        customerCount: custMap.get(a._id.toString()) || 0,
-        persistencyRate: Math.round(persistencyRate * 100) / 100,
-        percentAchieved: Math.round(percentAchieved * 100) / 100,
-        mdrtStatus,
-      };
-    });
-
-    // Apply mdrtStatus filter
     const { mdrtStatus } = req.query as any;
     if (mdrtStatus) {
-      agentList = agentList.filter(a => a.mdrtStatus === mdrtStatus);
+      pipeline.push({ $match: { mdrtStatus } });
     }
 
-    // Sort
-    const sortDir = sortOrder === 'asc' ? 1 : -1;
-    agentList.sort((a: any, b: any) => ((a[sortBy] ?? 0) - (b[sortBy] ?? 0)) * sortDir);
+    pipeline.push(
+      { $sort: { [safeSortBy]: sortDir, _id: 1 } },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limitNumber },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                employeeId: 1,
+                branchId: 1,
+                ytdPremium: 1,
+                policyCount: 1,
+                activePolicies: 1,
+                customerCount: 1,
+                persistencyRate: 1,
+                percentAchieved: 1,
+                mdrtStatus: 1,
+              },
+            },
+          ],
+          meta: [{ $count: 'total' }],
+        },
+      },
+    );
 
-    // Paginate
-    const start = (page - 1) * limit;
-    const paginatedList = agentList.slice(start, start + Number(limit));
+    const [result] = await User.aggregate(pipeline);
+    const paginatedList = (result?.data || []).map((item: any) => ({
+      ...item,
+      persistencyRate: Math.round((item.persistencyRate || 0) * 100) / 100,
+      percentAchieved: Math.round((item.percentAchieved || 0) * 100) / 100,
+    }));
+    const total = result?.meta?.[0]?.total || 0;
 
-    sendSuccess(res, paginatedList, 200, {
-      page: Number(page),
-      limit: Number(limit),
-      total: agentList.length,
-    });
+    const meta = {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+    };
+
+    setCached(cacheKey, { data: paginatedList, meta }, 30 * 1000);
+    sendSuccess(res, paginatedList, 200, meta);
   } catch (e) {
     sendError(res, 'INTERNAL_ERROR', 'Failed to load agent overview', 500);
   }
@@ -107,6 +209,13 @@ export async function agentOverview(req: Request, res: Response): Promise<void> 
 
 export async function agentDetail(req: Request, res: Response): Promise<void> {
   try {
+    const cacheKey = `admin-agent-detail:${req.params.id}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) {
+      sendSuccess(res, cached);
+      return;
+    }
+
     const agent = await User.findOne({ _id: req.params.id, role: 'agent' }).select('-passwordHash');
     if (!agent) {
       sendError(res, 'NOT_FOUND', 'Agent not found', 404);
@@ -149,7 +258,7 @@ export async function agentDetail(req: Request, res: Response): Promise<void> {
     else if (percentAchieved >= 70) mdrtStatus = 'on-track';
     else mdrtStatus = 'at-risk';
 
-    sendSuccess(res, {
+    const payload = {
       agent,
       performance: {
         ytdPremium,
@@ -164,7 +273,10 @@ export async function agentDetail(req: Request, res: Response): Promise<void> {
       policies,
       customers,
       monthlyTimeline: monthlyTimeline.map((r: any) => ({ month: r._id, premium: r.premium })),
-    });
+    };
+
+    setCached(cacheKey, payload, 30 * 1000);
+    sendSuccess(res, payload);
   } catch (e) {
     sendError(res, 'INTERNAL_ERROR', 'Failed to load agent detail', 500);
   }

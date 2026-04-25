@@ -58,6 +58,7 @@ const PolicyHolderSchema = new Schema<IPolicyHolder>(
 
 PolicyHolderSchema.index({ agentId: 1, panNumber: 1 }, { unique: true });
 PolicyHolderSchema.index({ agentId: 1 });
+PolicyHolderSchema.index({ agentId: 1, createdAt: -1 });
 PolicyHolderSchema.index({ mobile: 1 });
 
 export const PolicyHolder = mongoose.model<IPolicyHolder>('PolicyHolder', PolicyHolderSchema);

@@ -31,5 +31,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.index({ role: 1, branchId: 1 });
+UserSchema.index({ role: 1, isActive: 1, branchId: 1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);
